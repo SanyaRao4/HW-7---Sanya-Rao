@@ -1,0 +1,57 @@
+---
+title: "HW#7"
+date: "11/23/2026"
+output: html_document
+---
+
+```{r}
+library(fpp2)
+library(forecast)
+# Create Data Frame
+df <- read.csv("~/Downloads/WomenEmploymentData.csv")
+names(df)[2] <- "Number of Women Employed"
+# Monthly data starting January 1955
+emp <- ts(df[, 2], start = c(1955, 1), frequency = 12)
+# We need to fill in the missing October 2025 Value
+sum(is.na(emp))
+emp <- na.interp(emp)
+# Plot the data
+plot(emp)
+# Check how many differences are needed
+ndiffs(emp)
+tsdisplay(emp)
+
+
+# Difference the data once
+# ndiffs shows that the data needs to be differenced 2 times to become stationary, which matches the d = 2 in the ARIMA(0,2,5) model R selected. The time series have a strong upward trend from 1955 to 2026, and the ACF decrases very slowly and stays high across all lags, so the data is not stationary. The PACF has one large spike at lag 1 and then drops off, which shows each month is closely tied to the month before it
+
+empdiff1 <- diff(emp, differences = 1)
+plot(empdiff1)
+tsdisplay(empdiff1)
+
+# 1. Fit the ARIMA model
+#R selected ARIMA(0,2,5) for us among all of the options because it had the lowest AIC of all the models it tested. The data is differenced twice to remove the trend, and five moving average terms adjust each forecast based on past errors. sigma² = 50,686, so a typical error is about 225,000 married women. 
+
+auto_fit <- auto.arima(emp, trace = TRUE, stepwise = FALSE)
+auto_fit
+attributes(auto_fit)
+
+# 2. Residual Analysis
+#The residual ACF shows almost all bars within the blue bounds, with only a few small spikes around lags 5–6 and 24, so the residuals are mostly rndom and the model captured the pattern in the data. The residual plot and histogram are centered on the zero, so the model is basically unbiased, but there is one large negative outlier in April 2020 from the COVID-19 drop, which no model could have predicted. The diag output shows all three checks together: residuals over time, their ACF, and Ljung-Box p-values at different lags.
+Acf(auto_fit$residuals)
+Box.test(residuals(auto_fit), lag = 20, type = "Ljung")
+plot.ts(residuals(auto_fit))
+hist(auto_fit$residuals)
+tsdiag(auto_fit)
+
+# 3. Forecast the next 5 periods
+#The model forecasts that employment among married women will stay roughly flat at about 38.0 million over the next five months, from 37,962 thousand in October 2026 to 37,970 thousand in February 2027. The 99.5% range widens from 37.3–38.6 million in October to 36.9–39.1 million in February, because uncertainty grows the further ahead the model predicts. In the plot, the short blue line at the far right is the forecast and the shaded area is the 99.5% range, which continues at the current level and follows the recent flat trend.
+forecast(auto_fit, h = 5, level = c(99.5))
+plot(forecast(auto_fit, h = 5, level = c(99.5)))
+
+# 4. Accuracy
+#The ARIMA model is very accurate. An RMSE of 224.2 means the predictions are off by about 224,000 married women on average, which is small compared with a total of about 38 million, and a MAPE of 0.51% means they are off by only about half a percent. 
+accuracy(auto_fit)
+
+
+```
